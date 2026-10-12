@@ -22,7 +22,9 @@
 - [x] src/core/cards.ts 卡牌模型
 - [x] src/core/poker.ts 扑克判定器（15 种牌型含 3 隐藏）+ 测试
 - [x] 首次 git commit（ae816f5，41 测试全绿）
-- [ ] src/core/scoring.ts 计分管线（事件队列）架构
+- [x] src/core/scoring.ts 计分管线（事件队列）+ jokerRegistry.ts + 12 组机制冒烟测试（29e56a2）
+- [x] src/core/economy.ts 经济系统骨架（注入式数值）
+- [x] src/core/deck.ts 牌堆管理 + 6 测试（59 测试全绿）
 - [ ] 阶段A 汇总：references/*.json → docs/fact-table.md（每条带出处+置信度）
 - [ ] 阶段B 计分管线（事件队列）+ 10 组手算 golden tests
 - [ ] 阶段B 经济系统（利息/重掷/盲注奖励）+ 测试
