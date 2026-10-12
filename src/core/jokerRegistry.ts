@@ -67,6 +67,8 @@ export interface JokerInstance {
   readonly key: string;
   /** 运行时状态（如 Baron 累积、Ride the Bus 面板计数） */
   counters: Record<string, number>;
+  /** 小丑自身的版本（Foil 小丑触发时 +50 Chips 等）[FT-CORE-04] */
+  edition?: "base" | "foil" | "holo" | "poly" | "negative";
 }
 
 export interface JokerEffect {

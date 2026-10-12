@@ -18,6 +18,7 @@
 import { baseChips, type PlayingCard } from "./cards.js";
 import type { HandType } from "./poker.js";
 import { detectHand } from "./poker.js";
+import { handValue, initialHandLevels, type HandLevels } from "./hands.js";
 import type { Rng } from "./rng.js";
 import {
   addChips,
@@ -33,9 +34,8 @@ import {
 
 /** 全部外部数值集中注入，出处 docs/fact-table.md */
 export interface GameValues {
-  pokerHands: Record<HandType, { chips: number; mult: number }>;
   edition: {
-    foilChips: number; // FT-CORE-04 [待核对]
+    foilChips: number; // FT-CORE-04 ✅
     holoMult: number;
     polyFactor: number;
   };
@@ -74,12 +74,14 @@ export interface ScoringInput {
   defs: ReadonlyMap<string, JokerDef>;
   rng: Rng;
   values: GameValues;
+  /** 牌型等级（星球牌升级）；缺省 = 全部 1 级 */
+  handLevels?: HandLevels;
 }
 
 export function scoreHand(input: ScoringInput): ScoringResult {
   const { playedCards, heldCards, jokers, defs, rng, values } = input;
   const handType = detectHand(playedCards);
-  const base = values.pokerHands[handType];
+  const base = handValue(input.handLevels ?? initialHandLevels(), handType);
 
   const ctx: ScoreContext = {
     chips: base.chips,
@@ -99,7 +101,7 @@ export function scoreHand(input: ScoringInput): ScoringResult {
   };
 
   // 2. hand_played 时机
-  fireJokers(ctx, defs, "hand_played");
+  fireJokers(ctx, defs, "hand_played", values);
 
   // 3. 逐张计分（从左到右）
   for (const card of playedCards) {
@@ -125,7 +127,7 @@ export function scoreHand(input: ScoringInput): ScoringResult {
     if (card.enhancement === "steel") {
       timesMult(ctx, values.enhancement.steelFactor, "enhancement", card.id);
     }
-    fireJokers(ctx, defs, "held_scored");
+    fireJokers(ctx, defs, "held_scored", values);
     ctx.currentCard = null;
   }
 
@@ -190,16 +192,17 @@ function scoreCardOnce(
   if (card.edition === "poly") timesMult(ctx, values.edition.polyFactor, "edition", card.id);
 
   // e. 小丑（从左到右）
-  fireJokers(ctx, defs, "card_scored");
+  fireJokers(ctx, defs, "card_scored", values);
 
   ctx.currentCard = null;
 }
 
-/** 按小丑排列顺序广播某时机事件 */
+/** 按小丑排列顺序广播某时机事件；小丑自身版本在其触发后结算 [FT-CORE-04] */
 function fireJokers(
   ctx: ScoreContext,
   defs: ReadonlyMap<string, JokerDef>,
   trigger: JokerTrigger,
+  values: GameValues,
 ): void {
   for (let i = 0; i < ctx.jokers.length; i++) {
     const inst = ctx.jokers[i]!;
@@ -207,10 +210,18 @@ function fireJokers(
     if (!def) continue;
     ctx.currentJokerIndex = i;
     ctx.activeJokerKey = inst.key;
+    let fired = false;
     for (const effect of def.effects) {
       if (effect.trigger !== trigger) continue;
       if (effect.condition && !effect.condition(ctx)) continue;
       effect.action(ctx);
+      fired = true;
+    }
+    // 小丑版本：每次实际触发后结算（Negative 在槽位计算时处理，不在计分中）
+    if (fired && inst.edition && inst.edition !== "base" && inst.edition !== "negative") {
+      if (inst.edition === "foil") addChips(ctx, values.edition.foilChips, "edition", undefined);
+      if (inst.edition === "holo") addMult(ctx, values.edition.holoMult, "edition", undefined);
+      if (inst.edition === "poly") timesMult(ctx, values.edition.polyFactor, "edition", undefined);
     }
   }
   ctx.currentJokerIndex = -1;

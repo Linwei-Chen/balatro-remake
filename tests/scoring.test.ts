@@ -6,20 +6,6 @@ import { standardDeck, type PlayingCard } from "../src/core/cards.js";
 
 /** 测试用数值（数值本身由 golden tests 对照 fact-table 锁定，这里只验证机制） */
 export const testValues: GameValues = {
-  pokerHands: {
-    FLUSH_FIVE: { chips: 160, mult: 16 },
-    FLUSH_HOUSE: { chips: 140, mult: 14 },
-    FIVE_OF_A_KIND: { chips: 120, mult: 12 },
-    STRAIGHT_FLUSH: { chips: 100, mult: 8 },
-    FOUR_OF_A_KIND: { chips: 60, mult: 7 },
-    FULL_HOUSE: { chips: 40, mult: 4 },
-    FLUSH: { chips: 35, mult: 4 },
-    STRAIGHT: { chips: 30, mult: 4 },
-    THREE_OF_A_KIND: { chips: 30, mult: 3 },
-    TWO_PAIR: { chips: 20, mult: 2 },
-    PAIR: { chips: 10, mult: 2 },
-    HIGH_CARD: { chips: 5, mult: 1 },
-  },
   edition: { foilChips: 50, holoMult: 10, polyFactor: 1.5 },
   enhancement: {
     bonusChips: 30,

@@ -13,6 +13,7 @@ import { scoreHand, type GameValues } from "../src/core/scoring.js";
 import { Rng } from "../src/core/rng.js";
 import { standardDeck, type PlayingCard } from "../src/core/cards.js";
 import { testValues, card, defs } from "./scoring.test.js";
+import { initialHandLevels, levelUpHand } from "../src/core/hands.js";
 
 const deck = standardDeck();
 
@@ -122,18 +123,20 @@ describe("效果构造器库", () => {
     expect(r.log.filter((e) => e.source === "j_log").length).toBe(1);
   });
 
-  it("GameValues 类型可整体替换（golden test 接口就绪）", () => {
-    const custom: GameValues = JSON.parse(JSON.stringify(testValues));
-    custom.pokerHands.PAIR!.mult = 9;
+  it("handLevels 可整体替换（星球升级后牌型数值变化）", () => {
+    const levels = initialHandLevels();
+    levelUpHand(levels, "HIGH_CARD", 2); // 高牌 2 级：5+20 chips, 1+2 mult
     const r = scoreHand({
-      playedCards: [card("S9"), card("H9")],
+      playedCards: [card("S9")],
       heldCards: [],
       jokers: [],
       defs: new Map(),
       rng: new Rng("H7"),
-      values: custom,
+      values: testValues,
+      handLevels: levels,
     });
-    expect(r.mult).toBe(9);
+    expect(r.chips).toBe(9 + 25);
+    expect(r.mult).toBe(3);
   });
 });
 
