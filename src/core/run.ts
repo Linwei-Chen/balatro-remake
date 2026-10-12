@@ -5,6 +5,7 @@
 
 import type { PlayingCard } from "./cards.js";
 import type { JokerInstance } from "./jokerRegistry.js";
+import type { HandType } from "./poker.js";
 import {
   blindRequirement,
   endOfRoundIncome,
@@ -47,9 +48,11 @@ export interface RunState {
   consumableSlots: number;
   jokers: JokerInstance[];
   deck: PlayingCard[];
+  /** 本回合已打出的牌型（Card Sharp 用；beginBlind 清空） */
+  handsPlayedTypes: HandType[];
   phase: RunPhase;
   /** 结算明细（最后一回合） */
-  lastIncome: { base: number; interest: number; gold: number; total: number } | null;
+  lastIncome: { base: number; hands: number; interest: number; gold: number; total: number } | null;
 }
 
 export function newRun(deck: PlayingCard[], opts: RunOptions, rng: Rng): RunState {
@@ -71,6 +74,7 @@ export function newRun(deck: PlayingCard[], opts: RunOptions, rng: Rng): RunStat
     consumableSlots: opts.consumableSlots,
     jokers: [],
     deck,
+    handsPlayedTypes: [],
     phase: "blind_select",
     lastIncome: null,
   };
@@ -83,6 +87,7 @@ export function beginBlind(state: RunState): RunState {
   s.requirement = blindRequirement(s.ante, s.blindKind, s.economy);
   s.roundScore = 0;
   s.handsLeft = s.handsLeft > 0 ? s.handsLeft : 0;
+  s.handsPlayedTypes = [];
   s.phase = "playing";
   return s;
 }
@@ -100,14 +105,22 @@ export function beatBlind(state: RunState): boolean {
 }
 
 /** 击败盲注后的结算入账并推进（blind_select 或下一底注）
- *  goldCardsInHand：回合末留在手中的金钱牌数量 */
-export function settleRound(state: RunState, goldCardsInHand: number): RunState {
+ *  goldCardsInHand：回合末留在手中的金钱牌数量；handsRemaining：剩余出牌次数。
+ *  Ante 8+ 的 Boss 盲注按 Showdown 奖励 $8 结算 [✅ code+wiki] */
+export function settleRound(
+  state: RunState,
+  goldCardsInHand: number,
+  handsRemaining = 0,
+): RunState {
   const s = { ...state };
-  // 利息按结算前持有金钱计 [FT-ECO-05 结算口径待核对]
+  const showdown = s.blindKind === "boss" && s.ante >= 8;
+  // 利息按结算前持有金钱计 [✅ code+wiki：回合内收入计息、回合末小丑不计]
   const income = endOfRoundIncome({
     kind: s.blindKind,
     money: s.money,
     goldCardsInHand,
+    handsRemaining,
+    showdown,
     v: s.economy,
   });
   s.money += income.total;

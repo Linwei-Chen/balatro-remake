@@ -17,9 +17,9 @@
 
 import { baseChips, type PlayingCard } from "./cards.js";
 import type { HandType } from "./poker.js";
-import { detectHand } from "./poker.js";
+import { detectHandWithRules } from "./poker.js";
 import { handValue, initialHandLevels, type HandLevels } from "./hands.js";
-import type { Rng } from "./rng.js";
+import { Rng } from "./rng.js";
 import {
   addChips,
   addMoney,
@@ -76,17 +76,38 @@ export interface ScoringInput {
   values: GameValues;
   /** 牌型等级（星球牌升级）；缺省 = 全部 1 级 */
   handLevels?: HandLevels;
+  /** 当前持有资金（Bull 等用）；缺省 0 */
+  funds?: number;
+  /** 剩余出牌次数（Acrobat 等用） */
+  handsLeft?: number;
+  /** 本手牌是本回合第几手（从 1 计） */
+  handIndex?: number;
+  /** 引擎规则标志（Four Fingers 等） */
+  rules?: import("./jokerRegistry.js").EngineRules;
+  /** 剩余弃牌次数（Mystic Summit 等用） */
+  discardsLeft?: number;
+  /** 当前牌组张数（Blue Joker 等用） */
+  deckSize?: number;
+  /** 本回合已打出的牌型（Card Sharp 等用） */
+  handsPlayedTypes?: HandType[];
 }
 
 export function scoreHand(input: ScoringInput): ScoringResult {
   const { playedCards, heldCards, jokers, defs, rng, values } = input;
-  const handType = detectHand(playedCards);
+  const handType = detectHandWithRules(playedCards, input.rules);
   const base = handValue(input.handLevels ?? initialHandLevels(), handType);
 
   const ctx: ScoreContext = {
     chips: base.chips,
     mult: base.mult,
     money: 0,
+    funds: input.funds ?? 0,
+    handsLeft: input.handsLeft ?? 1,
+    handIndex: input.handIndex ?? 1,
+    rules: input.rules ?? {},
+    discardsLeft: input.discardsLeft ?? 0,
+    deckSize: input.deckSize ?? 52,
+    handsPlayedTypes: input.handsPlayedTypes ?? [],
     handType,
     currentCard: null,
     playedCards,
@@ -98,6 +119,8 @@ export function scoreHand(input: ScoringInput): ScoringResult {
     log: [],
     pendingDestroys: [],
     scoredCount: 0,
+    pendingRetriggers: 0,
+    defsRef: defs,
   };
 
   // 2. hand_played 时机
@@ -106,6 +129,8 @@ export function scoreHand(input: ScoringInput): ScoringResult {
   // 3. 逐张计分（从左到右）
   for (const card of playedCards) {
     if (card.destroyed) continue;
+    // currentCard 保持到重触发收集结束（Hack/Sock 等条件依赖当前牌）
+    ctx.currentCard = card;
     scoreCardOnce(ctx, card, values, defs);
     // Red seal：重新触发整张牌
     for (let i = 0; i < values.seal.redRetriggers; i++) {
@@ -114,6 +139,12 @@ export function scoreHand(input: ScoringInput): ScoringResult {
         scoreCardOnce(ctx, card, values, defs);
       }
     }
+    // 小丑重触发（Hanging Chad / Hack / Sock and Buskin / Dusk）
+    const retriggers = collectRetriggers(ctx, defs, "scored");
+    for (let i = 0; i < retriggers; i++) {
+      scoreCardOnce(ctx, card, values, defs);
+    }
+    ctx.currentCard = null;
     // 玻璃破碎判定（每次计分后）
     if (card.enhancement === "glass" && rng.chance(values.enhancement.glassBreakChance)) {
       ctx.pendingDestroys.push(card);
@@ -124,10 +155,12 @@ export function scoreHand(input: ScoringInput): ScoringResult {
   // 4. 手中计分阶段
   for (const card of heldCards) {
     ctx.currentCard = card;
-    if (card.enhancement === "steel") {
-      timesMult(ctx, values.enhancement.steelFactor, "enhancement", card.id);
+    applyHeldOnce(ctx, values, defs);
+    // Mime：重触发手中能力（steel + held 小丑再来一次）
+    const heldRetriggers = collectRetriggers(ctx, defs, "held");
+    for (let i = 0; i < heldRetriggers; i++) {
+      applyHeldOnce(ctx, values, defs);
     }
-    fireJokers(ctx, defs, "held_scored", values);
     ctx.currentCard = null;
   }
 
@@ -193,8 +226,81 @@ function scoreCardOnce(
 
   // e. 小丑（从左到右）
   fireJokers(ctx, defs, "card_scored", values);
+}
 
-  ctx.currentCard = null;
+/** 手中单张的一次完整计分（steel + held 小丑） */
+function applyHeldOnce(
+  ctx: ScoreContext,
+  values: GameValues,
+  defs: ReadonlyMap<string, JokerDef>,
+): void {
+  if (ctx.currentCard?.enhancement === "steel") {
+    timesMult(ctx, values.enhancement.steelFactor, "enhancement", ctx.currentCard.id);
+  }
+  fireJokers(ctx, defs, "held_scored", values);
+}
+
+/** 收集本轮牌的小丑重触发数（retrigger 时机；按 effect.retriggerPhase 过滤阶段） */
+function collectRetriggers(
+  ctx: ScoreContext,
+  defs: ReadonlyMap<string, JokerDef>,
+  phase: "scored" | "held",
+): number {
+  let total = 0;
+  for (let i = 0; i < ctx.jokers.length; i++) {
+    const inst = ctx.jokers[i]!;
+    const def = defs.get(inst.key);
+    if (!def) continue;
+    ctx.currentJokerIndex = i;
+    ctx.activeJokerKey = inst.key;
+    for (const effect of def.effects) {
+      if (effect.trigger !== "retrigger") continue;
+      if (effect.retriggerPhase && effect.retriggerPhase !== phase) continue;
+      if (effect.condition && !effect.condition(ctx)) continue;
+      ctx.pendingRetriggers = 0;
+      effect.action(ctx);
+      total += ctx.pendingRetriggers;
+      ctx.pendingRetriggers = 0;
+    }
+  }
+  ctx.currentJokerIndex = -1;
+  ctx.activeJokerKey = null;
+  return total;
+}
+
+/** 回合末（cash out 前）小丑结算：目前支持无条件 earnMoney 型（Golden Joker 等）。
+ *  返回入账金额；counters 增值类（Egg 等）待 run 集成时扩展。 */
+export function roundEndPayout(
+  jokers: readonly JokerInstance[],
+  defs: ReadonlyMap<string, JokerDef>,
+  values: GameValues,
+): { money: number; log: TriggerLogEntry[] } {
+  const ctx: ScoreContext = {
+    chips: 0,
+    mult: 0,
+    money: 0,
+    funds: 0,
+    handsLeft: 0,
+    handIndex: 1,
+    rules: {},
+    discardsLeft: 0,
+    deckSize: 0,
+    handsPlayedTypes: [],
+    handType: "HIGH_CARD",
+    currentCard: null,
+    playedCards: [],
+    heldCards: [],
+    jokers,
+    currentJokerIndex: -1,
+    activeJokerKey: null,
+    rng: new Rng("round-end"),
+    log: [],
+    pendingDestroys: [],
+    scoredCount: 0,
+    pendingRetriggers: 0,
+  };
+  fireJokers(ctx, defs, "round_end", values);
+  return { money: ctx.money, log: ctx.log };
 }
 
 /** 按小丑排列顺序广播某时机事件；小丑自身版本在其触发后结算 [FT-CORE-04] */

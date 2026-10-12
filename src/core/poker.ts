@@ -12,6 +12,7 @@
 
 import type { PlayingCard } from "./cards.js";
 import { isFace, baseChips } from "./cards.js";
+import type { EngineRules } from "./jokerRegistry.js";
 
 export type HandType =
   | "FLUSH_FIVE"
@@ -86,28 +87,6 @@ function isFlush5(cards: readonly PlayingCard[]): boolean {
   return true;
 }
 
-function isStraight5(cards: readonly PlayingCard[]): boolean {
-  const ranks = [...cards.map((c) => c.rank)].sort((a, b) => a - b);
-  // 全部点数互异才可能成顺
-  for (let i = 1; i < ranks.length; i++) {
-    if (ranks[i] === ranks[i - 1]) return false;
-  }
-  const lo = ranks as number[];
-  // 普通连顺
-  let normal = true;
-  for (let i = 1; i < lo.length; i++) {
-    if (lo[i]! !== lo[i - 1]! + 1) {
-      normal = false;
-      break;
-    }
-  }
-  if (normal) return true;
-  // A-2-3-4-5 轮子（A 当 1）：点数集合恰为 {2,3,4,5,14}
-  if (lo.length !== 5) return false;
-  const wheel = new Set([14, 2, 3, 4, 5]);
-  return lo.every((r) => wheel.has(r));
-}
-
 export interface HandCounts {
   readonly rankCounts: ReadonlyMap<number, number>;
   readonly sortedCounts: readonly number[];
@@ -129,17 +108,53 @@ function rankStats(cards: readonly PlayingCard[]): HandCounts {
  * 判定所选 1-5 张牌中的最高牌型。
  * 所有打出的牌都会计分（含不参与牌型的散牌），此函数只决定牌型本身。
  */
-export function detectHand(cards: readonly PlayingCard[]): HandType {
+function isStraight5(cards: readonly PlayingCard[], maxGap = 0): boolean {
+  const ranks = [...cards.map((c) => c.rank)].sort((a, b) => a - b);
+  // 全部点数互异才可能成顺
+  for (let i = 1; i < ranks.length; i++) {
+    if (ranks[i] === ranks[i - 1]) return false;
+  }
+  const lo = ranks as number[];
+  // 普通连顺（Shortcut：允许相邻点数间隔 ≤ maxGap+1，即最多跳过 maxGap 个点数）
+  let normal = true;
+  for (let i = 1; i < lo.length; i++) {
+    const gap = lo[i]! - lo[i - 1]!;
+    if (gap < 1 || gap > maxGap + 1) {
+      normal = false;
+      break;
+    }
+  }
+  if (normal) return true;
+  // A-2-3-4-5 轮子（A 当 1）：仅无跳空时成立
+  if (maxGap === 0 && lo.length === 5) {
+    const wheel = new Set([14, 2, 3, 4, 5]);
+    return lo.every((r) => wheel.has(r));
+  }
+  return false;
+}
+
+/** 判定所选 1-5 张牌中的最高牌型（rules 来自 Four Fingers / Shortcut 等规则小丑） */
+export function detectHandWithRules(
+  cards: readonly PlayingCard[],
+  rules?: EngineRules,
+): HandType {
   if (cards.length === 0 || cards.length > 5) {
     throw new Error(`detectHand：需要 1-5 张牌，收到 ${cards.length}`);
   }
+  const minFlush = rules?.minFlushCards ?? 5;
+  const minStraight = rules?.minStraightCards ?? 5;
+  const maxGap = rules?.maxRankGap ?? 0;
   const { sortedCounts, maxCount } = rankStats(cards);
+  const nonStone = cards.filter((c) => c.enhancement !== "stone");
+  const n = cards.length;
 
-  if (cards.length === 5) {
-    // Stone 牌不参与花色/顺子判定；全 Stone 直接高牌 [FT-CORE-05]
-    const nonStone = cards.filter((c) => c.enhancement !== "stone");
-    const flush = nonStone.length > 0 && isFlush5(nonStone);
-    const straight = nonStone.length === 5 && isStraight5(nonStone);
+  // <5 张时仅 Four Fingers 允许 4 张同花/顺子参与判定
+  const flushCandidate = nonStone.length >= minFlush && minFlush < 5 ? nonStone : n === 5 ? nonStone : [];
+  const flush = flushCandidate.length >= minFlush && isFlush5(flushCandidate);
+  const straight =
+    nonStone.length >= minStraight && isStraight5(nonStone, maxGap);
+
+  if (n === 5) {
     if (maxCount === 5) return flush ? "FLUSH_FIVE" : "FIVE_OF_A_KIND";
     if (maxCount === 3 && sortedCounts[1] === 2) return flush ? "FLUSH_HOUSE" : "FULL_HOUSE";
     if (straight && flush) return "STRAIGHT_FLUSH";
@@ -147,13 +162,19 @@ export function detectHand(cards: readonly PlayingCard[]): HandType {
     if (flush) return "FLUSH";
     if (straight) return "STRAIGHT";
   } else {
-    // <5 张：只可能是 四条/三条/两对/一对/高牌
     if (maxCount === 4) return "FOUR_OF_A_KIND";
+    if (flush && !straight) return "FLUSH";
+    if (straight && !flush) return "STRAIGHT";
+    if (straight && flush) return "STRAIGHT_FLUSH";
   }
   if (maxCount === 3) return "THREE_OF_A_KIND";
   if (maxCount === 2 && sortedCounts.length >= 2 && sortedCounts[1] === 2) return "TWO_PAIR";
   if (maxCount === 2) return "PAIR";
   return "HIGH_CARD";
+}
+
+export function detectHand(cards: readonly PlayingCard[]): HandType {
+  return detectHandWithRules(cards);
 }
 
 /** 工具：某种牌型在所选牌中的「参与牌」（当前实现按花色/点数近似，仅供 UI 展示） */

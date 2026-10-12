@@ -21,8 +21,8 @@ export function def(
   return { key, name, rarity, cost, effects, unlock };
 }
 
-type Action = (ctx: ScoreContext) => void;
-type Cond = (ctx: ScoreContext) => boolean;
+export type Action = (ctx: ScoreContext) => void;
+export type Cond = (ctx: ScoreContext) => boolean;
 
 // ---------- trigger 构造器 ----------
 
@@ -80,7 +80,12 @@ export function rankIs(rank: Rank): Cond {
 }
 
 export function cardIsFace(): Cond {
-  return (ctx) => ctx.currentCard !== null && isFace(ctx.currentCard);
+  return (ctx) => {
+    const c = ctx.currentCard;
+    if (c === null) return false;
+    // Pareidolia：所有牌视为人头牌 [FT-JOKER pareidolia]
+    return isFace(c) || ctx.rules.allCardsAreFace === true;
+  };
 }
 
 export function enhIs(enh: Enhancement): Cond {

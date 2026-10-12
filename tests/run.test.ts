@@ -12,12 +12,14 @@ import { standardDeck } from "../src/core/cards.js";
 import { Rng } from "../src/core/rng.js";
 import type { EconomyValues } from "../src/core/economy.js";
 
-/** 测试用经济数值 —— 待 fact-table 锁定后统一替换为 gen-content 产物 */
+/** 测试用经济数值 —— 数值已锁定（FT-ECO ✅），生产值见 src/content/economy.ts */
 export const testEconomy: EconomyValues = {
   anteBases: [100, 300, 800, 2000, 5000, 11000, 20000, 35000],
   anteBaseBeyond: () => 50000,
   blindMultiplier: { small: 1, big: 1.5, boss: 2 },
   blindReward: { small: 3, big: 4, boss: 5 },
+  showdownReward: 8,
+  perUnusedHand: 1,
   interestPer: 5,
   interestCap: 5,
   rerollBase: 5,
@@ -73,9 +75,9 @@ describe("对局状态机", () => {
     run = addScore(run, 100);
     expect(beatBlind(run)).toBe(true);
     run = settleRound(run, 0);
-    // 奖励 $3 + 利息 floor(12/5)=2 → $17
+    // 奖励 $3 + 利息 floor(12/5)=2 → $17（剩余手牌 0 不给钱）
     expect(run.money).toBe(17);
-    expect(run.lastIncome).toEqual({ base: 3, interest: 2, gold: 0, total: 5 });
+    expect(run.lastIncome).toEqual({ base: 3, hands: 0, interest: 2, gold: 0, total: 5 });
     expect(run.blindKind).toBe("big");
     expect(run.phase).toBe("blind_select");
   });

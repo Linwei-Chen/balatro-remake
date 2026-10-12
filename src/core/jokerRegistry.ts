@@ -5,7 +5,7 @@
  * 特殊机制（Blueprint 复制等）用内置 handler。
  */
 
-import type { PlayingCard } from "./cards.js";
+import type { PlayingCard, Suit } from "./cards.js";
 import type { HandType } from "./poker.js";
 import type { Rng } from "./rng.js";
 
@@ -26,8 +26,37 @@ export type JokerTrigger =
   | "blind_start"
   /** 回合结束时（经济类） */
   | "round_end"
+  /** 重触发提供者（Mime/Hack/Hanging Chad 等；action 累加 ctx.pendingRetriggers） */
+  | "retrigger"
   /** 出售/销毁事件 */
   | "card_destroyed";
+
+/** 小丑对回合资源的静态修正（Troubadour/Stuntman/Juggler 等） */
+export interface JokerStatMods {
+  handSize?: number;
+  handsPerRound?: number;
+  discards?: number;
+  /** 每盲注开始时的特殊修正（Burglar：hands+3、discards 清零） */
+  blindStartHandsGain?: number;
+  blindStartDiscardsSetTo?: number;
+}
+
+/** 小丑提供的引擎规则（Four Fingers 等），聚合后进计分输入 */
+export type JokerRulesProvider = EngineRules;
+
+/** 引擎级规则标志（改判定规则的小丑：Four Fingers、Shortcut、Pareidolia、Smeared Bull） */
+export interface EngineRules {
+  /** 同花最少张数（Four Fingers → 4） */
+  minFlushCards?: number;
+  /** 顺子最少张数（Four Fingers → 4） */
+  minStraightCards?: number;
+  /** 顺子允许的最大跳空（Shortcut → 1） */
+  maxRankGap?: number;
+  /** 所有牌视为人头牌（Pareidolia） */
+  allCardsAreFace?: boolean;
+  /** 花色合并（Smeared Bull：红桃=方块、黑桃=梅花） */
+  suitMerges?: [Suit, Suit][];
+}
 
 /** 计分管线共享上下文 */
 export interface ScoreContext {
@@ -35,6 +64,20 @@ export interface ScoreContext {
   mult: number;
   /** 本回合累计金额变化（$事件单独结算，不进 chips×mult） */
   money: number;
+  /** 当前持有资金（Bull 等以资金为自变量的小丑用） */
+  funds: number;
+  /** 本回合剩余出牌次数（Acrobat 等用） */
+  handsLeft: number;
+  /** 本回合出牌序号（从 1 计，首手=1） */
+  handIndex: number;
+  /** 引擎规则标志（改判定规则的小丑：Four Fingers / Shortcut 等） */
+  rules: EngineRules;
+  /** 剩余弃牌次数（Mystic Summit 等用） */
+  discardsLeft: number;
+  /** 当前牌组张数（Blue Joker 等用） */
+  deckSize: number;
+  /** 本回合已打出的牌型（Card Sharp 等用） */
+  handsPlayedTypes: HandType[];
   handType: HandType;
   /** 当前正在计分的牌（card_scored / held_scored 时机有效） */
   currentCard: PlayingCard | null;
@@ -55,6 +98,10 @@ export interface ScoreContext {
   pendingDestroys: PlayingCard[];
   /** 计分过的牌（Red seal 重触发与部分小丑条件用） */
   scoredCount: number;
+  /** 当前牌的待处理小丑重触发数（retrigger 时机累加） */
+  pendingRetriggers: number;
+  /** 小丑定义表（Baseball Card 等按稀有度查询用，运行时注入） */
+  defsRef?: ReadonlyMap<string, import("./jokerRegistry.js").JokerDef>;
 }
 
 export interface TriggerLogEntry {
@@ -79,18 +126,24 @@ export interface JokerEffect {
   action: (ctx: ScoreContext) => void;
   /** 描述（生成 tooltip 用） */
   description: string;
+  /** retrigger 专属：限定重触发收集阶段（Mime 仅 held，其余默认 scored） */
+  retriggerPhase?: "scored" | "held";
 }
 
 export interface JokerDef {
   key: string;
   name: string;
   rarity: Rarity;
-  /** 商店售价区间 [min, max] */
+  /** 商店售价（原版为固定值，min=max） */
   cost: readonly [number, number];
   effects: JokerEffect[];
   /** 解锁条件描述（null = 无需解锁） */
   unlock: string | null;
-  /** 效果类别标记（供特殊 handler 识别，如 "copy_left_neighbor"） */
+  /** 回合资源静态修正 */
+  statMods?: JokerStatMods;
+  /** 引擎规则提供（Four Fingers 等） */
+  rules?: JokerRulesProvider;
+  /** 特殊机制标记（copy_right_neighbor / copy_leftmost 等） */
   special?: string;
 }
 

@@ -7,8 +7,9 @@ import type { PlayingCard } from "./cards.js";
 import { drawCards, newRound, playCards, toDiscard, type DeckState } from "./deck.js";
 import { scoreHand, type GameValues, type ScoringResult } from "./scoring.js";
 import type { HandLevels } from "./hands.js";
-import type { JokerDef, JokerInstance } from "./jokerRegistry.js";
+import type { EngineRules, JokerDef, JokerInstance } from "./jokerRegistry.js";
 import { addScore, beatBlind, type RunState } from "./run.js";
+import type { HandType } from "./poker.js";
 
 export interface PlayHandResult {
   scoring: ScoringResult;
@@ -16,6 +17,21 @@ export interface PlayHandResult {
   deckState: DeckState;
   /** 本手牌打出的牌（已进弃牌堆） */
   played: PlayingCard[];
+}
+
+/** 从小丑收集被动引擎规则（Four Fingers / Shortcut / Pareidolia）。
+ *  这些是常驻规则，需在牌型判定前生效，因此不放在计分时机里。 */
+export function collectRules(
+  jokers: readonly JokerInstance[],
+  defs: ReadonlyMap<string, JokerDef>,
+): EngineRules {
+  const rules: EngineRules = {};
+  for (const inst of jokers) {
+    const def = defs.get(inst.key);
+    if (!def?.rules) continue;
+    Object.assign(rules, def.rules);
+  }
+  return rules;
 }
 
 /**
@@ -52,10 +68,21 @@ export function attemptPlay(params: {
     rng: run.rng,
     values,
     handLevels,
+    rules: collectRules(jokers, defs),
+    funds: run.money,
+    // 打出前的剩余次数：===1 即本回合最后一手（Acrobat/Dusk 判定用）
+    handsLeft: run.handsLeft,
+    discardsLeft: run.discardsLeft,
+    deckSize: run.deck.length,
+    handsPlayedTypes: run.handsPlayedTypes,
   });
 
   let nextRun = addScore(run, scoring.score);
-  nextRun = { ...nextRun, handsLeft: nextRun.handsLeft - 1 };
+  nextRun = {
+    ...nextRun,
+    handsLeft: nextRun.handsLeft - 1,
+    handsPlayedTypes: [...nextRun.handsPlayedTypes, scoring.handType as HandType],
+  };
 
   // 玻璃破碎的牌从牌组中移除；其余进弃牌堆
   const destroyedIds = new Set(scoring.destroyed.map((c) => c.id));

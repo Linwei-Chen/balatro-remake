@@ -70,12 +70,53 @@
 ### FT-CORE-08 星球-牌型映射 ✅
 Pluto→高牌 / Mercury→对子 / Uranus→两对 / Venus→三条 / Saturn→顺子 / Jupiter→同花 / Earth→葫芦 / Mars→四条 / Neptune→同花顺（皇家同花顺共用） / Planet X→五条 / Ceres→同花葫芦 / Eris→同花五条（隐藏三张本局打出过才入池，softlock=true）
 
-## FT-ECO 经济与盲注
-（待 economy-blinds.json 代理返回后填充）
+## FT-ECO 经济与盲注 ✅ code+wiki（出处：references/economy-blinds.json）
 
-## FT-JOKER 小丑
+### FT-ECO-01 Ante 1-8 基础筹码 ✅ code+wiki+双锚点
+显示底注 N 用表值 `[100, 300, 800, 2000, 5000, 11000, 20000, 35000][N-1]`。
+**索引坑裁决**：采集表按 Ante 0..8 列出 9 值并断言「Ante 1=300」，与两条游戏内铁锚矛盾——
+① 开局首把小盲 100 分；② Ante 8 Boss = 70000 = 35000×2（通关标志分）。
+9 值映射到 Ante 1..9 无法同时满足双锚，映射到 Ante 0..8 则 Ante 8=50000 ⇒ Boss=100000 ✗。
+结论：代理系 Lua 数组索引误读；本表映射 Ante 1..8（实现 `anteBases[ante-1]`）。
+（Ante 0=100 仅挑战模式用，与 Ante 1 同值不冲突。）
+
+### FT-ECO-02 Ante 9+ 无尽公式 ✅ code+wiki（30/30 级与 wiki 表吻合）
+`floor_2sig( 50000 × (1.6 + (0.75×(ante-8))^(1+0.2×(ante-8)))^(ante-8) )`。
+**50000 是公式内硬编码常数（假想 Ante 9 表值），不是 Ante 8 基础值 35000**。
+锚点：Ante 9=110000、Ante 10=560000、Ante 11=7200000（手算验证一致）。
+`floor_2sig(n) = n - n % 10^floor(log10(n)-1)`（2 位有效数字向下取整）。
+
+### FT-ECO-03 盲注倍率 ✅ code+wiki
+Small 1x / Big 1.5x / Boss 2x（Luchador/Chicot 关闭 The Wall/Vessel 时回落 2x base）。
+
+### FT-ECO-04 击败奖励 ✅ code+wiki
+Small $3 / Big $4 / Boss $5 / **Showdown（Ante 8+ Boss）$8**。
+Mr. Bones 拯救无基础奖励；Red Stake+ 无 Small 奖励（Stakes 系统后置）。
+
+### FT-ECO-05 回合末现金结算 ✅ code+wiki（cash_out 顺序）
+顺序：**盲注奖励 → 剩余手牌×$1 → 利息 → 小丑回合末效果 → Tag → 汇总**。
+- 剩余手牌 $1/张（弃牌 $0；Green Deck 改 $2 手牌 + $1 弃牌，后置）
+- 利息 = `min(floor(持有金钱/5), 25/5)` 即每 $5 得 $1 上限 $5；
+  **利息口径**：回合内发放的钱（金卡/金印章/lucky）计息；回合末小丑（Golden）不计当回合利息
+- 金卡在手回合末 $3；金印章打出计分时 $3（计分管线内，非此处）
+- 利息券：Seed Money 上限 $10（cap 50）、Money Tree $20（cap 100）、To the Moon 利息翻倍
+
+### FT-ECO-06 商店经济 ✅ code+wiki
+重掷 $5 起步 +$1/次，每进新商店重置；卖价 = **max(1, floor(买价/2))**；
+开局 $4；包价 $4/$6/$8（Gros/Buff/Celestial/Standard ×1/2/卡数），商店槽位卡 2（Overstock 3/4）+ 包 2 + 券 1。
+
+### FT-ECO-07 Boss 盲注 ✅ code+wiki
+28 个 = 23 常规（mult 2、reward $5、各带 min_ante）+ 5 Showdown（Final Acorn/Leaf/Vessel/Heart/Bell，reward $8，**Vessel mult=6** 其余 2）。
+Showdown 出现时机：Ante 8；无尽 8/16/24/32。击败 Ante 8 Showdown 即通关。
+
+## FT-JOKER 小丑 ✅ 结构（出处：references/jokers-common/rare.json）
 已确认结构事实（两代理双源一致）：总数 **150** = Common **61** + Uncommon **64** + Rare **20** + Legendary **5**。
-全量目录待 jokers-*.json 合并后由附录生成。
+- 灌装进度：**55 已实现**（`tests/jokerDefs.test.ts` 快照防漂移），95 待实现（复杂型：blueprint/brainstorm/obelisk/隐形/传奇五张等）
+- 数据 schema 坑：retrigger 参数有两种形态——`{retrigger:{target,additional_times}}`（Hanging Chad）与
+  `{retrigger_count, target?/ranks?/condition?}`（Mime/Sock/Hack/Dusk）；构建器已兼容
+- 效果载体三类：`effects`（计分触发）/ `statMods`（回合资源：Juggler/Stuntman 等 6 个）/
+  `rules`（引擎规则：Four Fingers/Shortcut/Pareidolia，经 `collectRules` 在牌型判定前生效）
+- 小丑售价为**固定值**（采集 cost.min=max），非区间；卖价走 FT-ECO-06 公式
 
 ## FT-CONS 消耗牌与牌组（出处：references/consumables-decks.json）
 
