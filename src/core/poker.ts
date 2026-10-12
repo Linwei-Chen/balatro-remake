@@ -115,8 +115,10 @@ export interface HandCounts {
 }
 
 function rankStats(cards: readonly PlayingCard[]): HandCounts {
+  // Stone 牌无点数无花色，不参与牌型判定 [FT-CORE-05]
+  const effective = cards.filter((c) => c.enhancement !== "stone");
   const rankCounts = new Map<number, number>();
-  for (const c of cards) {
+  for (const c of effective) {
     rankCounts.set(c.rank, (rankCounts.get(c.rank) ?? 0) + 1);
   }
   const sortedCounts = [...rankCounts.values()].sort((a, b) => b - a);
@@ -134,8 +136,10 @@ export function detectHand(cards: readonly PlayingCard[]): HandType {
   const { sortedCounts, maxCount } = rankStats(cards);
 
   if (cards.length === 5) {
-    const flush = isFlush5(cards);
-    const straight = isStraight5(cards);
+    // Stone 牌不参与花色/顺子判定；全 Stone 直接高牌 [FT-CORE-05]
+    const nonStone = cards.filter((c) => c.enhancement !== "stone");
+    const flush = nonStone.length > 0 && isFlush5(nonStone);
+    const straight = nonStone.length === 5 && isStraight5(nonStone);
     if (maxCount === 5) return flush ? "FLUSH_FIVE" : "FIVE_OF_A_KIND";
     if (maxCount === 3 && sortedCounts[1] === 2) return flush ? "FLUSH_HOUSE" : "FULL_HOUSE";
     if (straight && flush) return "STRAIGHT_FLUSH";

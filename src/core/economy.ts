@@ -24,10 +24,8 @@ export interface EconomyValues {
   sellRatio: number;
   /** 初始资金（FT-ECO-08 [待核对]：$4） */
   startingMoney: number;
-  /** 金钱牌每回合末给钱（FT-CORE-05 [待核对]：$3） */
+  /** 金钱牌回合末在手得 $3（FT-CORE-05 ✅；Gold Seal 是打出计分时给钱，不在此处） */
   goldCardMoney: number;
-  /** 金封印每回合末给钱（FT-CORE-06 [待核对]：$3） */
-  goldSealMoney: number;
 }
 
 export function anteBase(ante: number, v: EconomyValues): number {
@@ -51,18 +49,17 @@ export function interestFor(money: number, v: EconomyValues): number {
   return Math.min(Math.floor(money / v.interestPer), v.interestCap);
 }
 
-/** 回合末总入账：盲注奖励 + 利息 + 金钱牌 + 金封印 */
+/** 回合末总入账：盲注奖励 + 利息 + 金钱牌（在手）。
+ *  Gold Seal 的 $3 在计分管线内（打出计分时）结算，不在此处。[FT-CORE-06 ✅] */
 export function endOfRoundIncome(params: {
   kind: BlindKind;
   money: number;
-  goldCards: number;
-  goldSeals: number;
+  goldCardsInHand: number;
   v: EconomyValues;
 }): { base: number; interest: number; gold: number; total: number } {
   const base = blindRewardFor(params.kind, params.v);
   const interest = interestFor(params.money, params.v);
-  const gold =
-    params.goldCards * params.v.goldCardMoney + params.goldSeals * params.v.goldSealMoney;
+  const gold = params.goldCardsInHand * params.v.goldCardMoney;
   return { base, interest, gold, total: base + interest + gold };
 }
 

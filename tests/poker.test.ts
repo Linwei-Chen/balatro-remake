@@ -173,6 +173,24 @@ describe("牌型判定", () => {
     }
   });
 
+  it("Stone 牌不参与牌型判定：一对+Stone 仍是一对", () => {
+    expect(
+      detectHand([c("S9"), c("H9"), c("D3", { enhancement: "stone" })]),
+    ).toBe("PAIR");
+  });
+
+  it("全 Stone 5 张 → 高牌（无点数无花色，不成同花）", () => {
+    expect(
+      detectHand([
+        c("S2", { enhancement: "stone" }),
+        c("H5", { enhancement: "stone" }),
+        c("D7", { enhancement: "stone" }),
+        c("C9", { enhancement: "stone" }),
+        c("H13", { enhancement: "stone" }),
+      ]),
+    ).toBe("HIGH_CARD");
+  });
+
   it("非法输入抛错", () => {
     expect(() => detectHand([])).toThrow();
     expect(() => detectHand([c("S2"), c("H2"), c("D2"), c("C2"), c("S3"), c("H3")])).toThrow();

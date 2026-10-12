@@ -40,18 +40,20 @@ export interface GameValues {
     polyFactor: number;
   };
   enhancement: {
-    bonusChips: number; // FT-CORE-05 [待核对]
+    bonusChips: number; // FT-CORE-05 ✅ wiki+代码双源
     multAdd: number;
     glassFactor: number;
     glassBreakChance: number;
-    luckyMoneyChance: number;
+    stoneChips: number; // Stone 牌 +50 chips、无点数无花色
+    luckyMultChance: number; // 1/5 概率
+    luckyMultBonus: number; // +20 Mult（加法！非乘法）
+    luckyMoneyChance: number; // 1/15 概率
     luckyMoney: number;
-    luckyMultChance: number;
-    luckyMultFactor: number;
     steelFactor: number; // 手中计分
   };
   seal: {
     redRetriggers: number;
+    goldSealMoney: number; // Gold Seal：打出并计分时 $3（FT-CORE-06）
   };
 }
 
@@ -144,7 +146,8 @@ export function scoreHand(input: ScoringInput): ScoringResult {
   };
 }
 
-/** 一张牌计分一次：基础点数 → edition → enhancement → 小丑 */
+/** 一张牌计分一次。内部顺序 [FT-CORE-03 ✅ wiki+代码双源]：
+ *  基础点数 → 强化 → 封印 → 版本 → on-scored 小丑 */
 function scoreCardOnce(
   ctx: ScoreContext,
   card: PlayingCard,
@@ -154,29 +157,39 @@ function scoreCardOnce(
   ctx.currentCard = card;
   ctx.scoredCount++;
 
-  // a. 基础点数
-  addChips(ctx, baseChips(card.rank), "card", card.id);
+  // a. 基础点数：Stone 无点数无花色 → +50 替代牌面点数
+  if (card.enhancement === "stone") {
+    addChips(ctx, values.enhancement.stoneChips, "card", card.id);
+  } else {
+    addChips(ctx, baseChips(card.rank), "card", card.id);
+  }
 
-  // b. 版本
-  if (card.edition === "foil") addChips(ctx, values.edition.foilChips, "edition", card.id);
-  if (card.edition === "holo") addMult(ctx, values.edition.holoMult, "edition", card.id);
-  if (card.edition === "poly") timesMult(ctx, values.edition.polyFactor, "edition", card.id);
-
-  // c. 强化
+  // b. 强化（Bonus 属点数步，紧跟牌面点数）
   const enh = card.enhancement;
   if (enh === "bonus") addChips(ctx, values.enhancement.bonusChips, "enhancement", card.id);
   if (enh === "mult") addMult(ctx, values.enhancement.multAdd, "enhancement", card.id);
   if (enh === "glass") timesMult(ctx, values.enhancement.glassFactor, "enhancement", card.id);
   if (enh === "lucky") {
+    // Lucky：1/5 概率 +20 Mult（加法），1/15 概率 $20 [FT-CORE-05 ✅ 代码佐证]
     if (ctx.rng.chance(values.enhancement.luckyMultChance)) {
-      timesMult(ctx, values.enhancement.luckyMultFactor, "enhancement", card.id);
+      addMult(ctx, values.enhancement.luckyMultBonus, "enhancement", card.id);
     }
     if (ctx.rng.chance(values.enhancement.luckyMoneyChance)) {
       addMoney(ctx, values.enhancement.luckyMoney, "enhancement", card.id);
     }
   }
 
-  // d. 小丑（从左到右）
+  // c. 封印（Gold Seal 打出并计分时 $3）
+  if (card.seal === "gold") {
+    addMoney(ctx, values.seal.goldSealMoney, "seal", card.id);
+  }
+
+  // d. 版本
+  if (card.edition === "foil") addChips(ctx, values.edition.foilChips, "edition", card.id);
+  if (card.edition === "holo") addMult(ctx, values.edition.holoMult, "edition", card.id);
+  if (card.edition === "poly") timesMult(ctx, values.edition.polyFactor, "edition", card.id);
+
+  // e. 小丑（从左到右）
   fireJokers(ctx, defs, "card_scored");
 
   ctx.currentCard = null;

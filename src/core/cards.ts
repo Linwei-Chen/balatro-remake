@@ -17,8 +17,9 @@ export type Enhancement =
   | "wild" // 视为任意花色
   | "glass" // ×2 mult，1/4 概率破碎
   | "steel" // 手中计分时 ×1.5 mult
-  | "gold" // 回合末 +$3
-  | "lucky"; // 1/5 概率 +$20，1/15 概率 ×20 mult
+  | "gold" // 回合末在手得 $3
+  | "lucky" // 1/5 概率 +20 Mult（加法），1/15 概率 $20
+  | "stone"; // +50 chips，无点数无花色（FT-CORE-05）
 
 export type Edition = "base" | "foil" | "holo" | "poly" | "negative";
 

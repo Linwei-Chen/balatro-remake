@@ -99,19 +99,15 @@ export function beatBlind(state: RunState): boolean {
   return state.roundScore >= state.requirement;
 }
 
-/** 击败盲注后的结算入账并推进（blind_select 或下一底注） */
-export function settleRound(
-  state: RunState,
-  goldCards: number,
-  goldSeals: number,
-): RunState {
+/** 击败盲注后的结算入账并推进（blind_select 或下一底注）
+ *  goldCardsInHand：回合末留在手中的金钱牌数量 */
+export function settleRound(state: RunState, goldCardsInHand: number): RunState {
   const s = { ...state };
   // 利息按结算前持有金钱计 [FT-ECO-05 结算口径待核对]
   const income = endOfRoundIncome({
     kind: s.blindKind,
     money: s.money,
-    goldCards,
-    goldSeals,
+    goldCardsInHand,
     v: s.economy,
   });
   s.money += income.total;

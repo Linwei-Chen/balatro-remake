@@ -26,13 +26,14 @@ export const testValues: GameValues = {
     multAdd: 4,
     glassFactor: 2,
     glassBreakChance: 1 / 4,
-    luckyMoneyChance: 1 / 5,
+    stoneChips: 50,
+    luckyMultChance: 1 / 5,
+    luckyMultBonus: 20,
+    luckyMoneyChance: 1 / 15,
     luckyMoney: 20,
-    luckyMultChance: 1 / 15,
-    luckyMultFactor: 20,
     steelFactor: 1.5,
   },
-  seal: { redRetriggers: 1 },
+  seal: { redRetriggers: 1, goldSealMoney: 3 },
 };
 
 const deck = standardDeck();
@@ -213,16 +214,15 @@ describe("计分管线机制（合成小丑冒烟测试）", () => {
     expect(["true", "false"]).toContain(String(!!result.destroyed.length));
   });
 
-  it("lucky 牌：命中 ×mult 与给钱（用可控 rng）", () => {
+  it("lucky 牌：1/5 +20 Mult（加法）、1/15 $20（用可控 rng）", () => {
     const lucky = { ...card("S9"), enhancement: "lucky" as const };
-    // 用固定种子驱动两次 chance：先判 mult(1/15) 后判 money(1/5)
-    // 找一个首抽 < 1/15 且次抽 < 1/5 的种子
+    // 用固定种子驱动两次 chance：先判 mult(1/5) 后判 money(1/15)
     let seed = "";
     for (let i = 0; i < 5000; i++) {
       seed = `LUCKY${i}`;
       const r = new Rng(seed);
-      const hitMult = r.chance(1 / 15);
-      const hitMoney = r.chance(1 / 5);
+      const hitMult = r.chance(1 / 5);
+      const hitMoney = r.chance(1 / 15);
       if (hitMult && hitMoney) break;
     }
     const result = scoreHand({
@@ -233,9 +233,50 @@ describe("计分管线机制（合成小丑冒烟测试）", () => {
       rng: new Rng(seed),
       values: testValues,
     });
-    // 高牌：chips = 9+5=14，mult = 1×20 = 20，money +$20
-    expect(result.mult).toBe(20);
+    // 高牌：chips = 9+5=14，mult = 1 + 20（加法）= 21，money +$20
+    expect(result.mult).toBe(21);
     expect(result.money).toBe(20);
+  });
+
+  it("stone 牌：+50 chips、无牌面点数、不参与牌型判定", () => {
+    const stone = { ...card("S9"), enhancement: "stone" as const };
+    // 单出一张 Stone：高牌（无点数），chips = 50 + 5(基础) = 55
+    const r1 = scoreHand({
+      playedCards: [stone],
+      heldCards: [],
+      jokers: [],
+      defs: new Map(),
+      rng: new Rng("STONE1"),
+      values: testValues,
+    });
+    expect(r1.handType).toBe("HIGH_CARD");
+    expect(r1.chips).toBe(55);
+    // Stone + 一对：牌型仍是一对
+    const r2 = scoreHand({
+      playedCards: [stone, card("H9"), card("D9")],
+      heldCards: [],
+      jokers: [],
+      defs: new Map(),
+      rng: new Rng("STONE2"),
+      values: testValues,
+    });
+    expect(r2.handType).toBe("PAIR");
+    // chips = 50 + 9 + 9 + 基础10 = 78
+    expect(r2.chips).toBe(78);
+  });
+
+  it("gold seal：打出并计分时 +$3（非回合末）", () => {
+    const goldSealed = { ...card("S9"), seal: "gold" as const };
+    const result = scoreHand({
+      playedCards: [goldSealed],
+      heldCards: [],
+      jokers: [],
+      defs: new Map(),
+      rng: new Rng("GOLD1"),
+      values: testValues,
+    });
+    expect(result.money).toBe(3);
+    expect(result.log.some((e) => e.source === "seal")).toBe(true);
   });
 
   it("steel 牌在手中计分 ×1.5 mult", () => {
