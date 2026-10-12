@@ -118,7 +118,7 @@ export function applyConsumable(
     }
 
     case "level_up": {
-      const hand = p.hand as HandType | undefined;
+      const hand = normalizeHand(p.hand as string | undefined);
       const levels = (p.levels as number | undefined) ?? 1;
       if (!hand) return fail(`${def.name} 缺少 hand 参数`);
       levelUpHand(ctx.handLevels, hand, levels);
@@ -140,6 +140,19 @@ export function applyConsumable(
     default:
       return fail(`${def.name} 未知目标 ${String(target)}`);
   }
+}
+
+/** 采集数据中的手型名为小写（"pair"），引擎枚举为大写（"PAIR"） */
+const VALID_HANDS = new Set<string>([
+  "HIGH_CARD", "PAIR", "TWO_PAIR", "THREE_OF_A_KIND", "STRAIGHT", "FLUSH",
+  "FULL_HOUSE", "FOUR_OF_A_KIND", "STRAIGHT_FLUSH", "FIVE_OF_A_KIND",
+  "FLUSH_HOUSE", "FLUSH_FIVE",
+]);
+
+function normalizeHand(hand: string | undefined): HandType | null {
+  if (!hand) return null;
+  const up = hand.toUpperCase();
+  return VALID_HANDS.has(up) ? (up as HandType) : null;
 }
 
 /** 根据参数推断目标类型 */
