@@ -96,7 +96,7 @@ function isStraight5(cards: readonly PlayingCard[]): boolean {
   // 普通连顺
   let normal = true;
   for (let i = 1; i < lo.length; i++) {
-    if (lo[i] !== lo[i - 1] + 1) {
+    if (lo[i]! !== lo[i - 1]! + 1) {
       normal = false;
       break;
     }

@@ -21,6 +21,8 @@
 - [x] src/core/rng.ts 可复现 RNG + 测试
 - [x] src/core/cards.ts 卡牌模型
 - [x] src/core/poker.ts 扑克判定器（15 种牌型含 3 隐藏）+ 测试
+- [x] 首次 git commit（ae816f5，41 测试全绿）
+- [ ] src/core/scoring.ts 计分管线（事件队列）架构
 - [ ] 阶段A 汇总：references/*.json → docs/fact-table.md（每条带出处+置信度）
 - [ ] 阶段B 计分管线（事件队列）+ 10 组手算 golden tests
 - [ ] 阶段B 经济系统（利息/重掷/盲注奖励）+ 测试
