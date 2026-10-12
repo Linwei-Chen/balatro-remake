@@ -5,7 +5,7 @@ import { Rng } from "../src/core/rng.js";
 import { standardDeck, type PlayingCard } from "../src/core/cards.js";
 
 /** 测试用数值（数值本身由 golden tests 对照 fact-table 锁定，这里只验证机制） */
-const testValues: GameValues = {
+export const testValues: GameValues = {
   pokerHands: {
     FLUSH_FIVE: { chips: 160, mult: 16 },
     FLUSH_HOUSE: { chips: 140, mult: 14 },
@@ -36,7 +36,7 @@ const testValues: GameValues = {
 };
 
 const deck = standardDeck();
-function card(id: string): PlayingCard {
+export function card(id: string): PlayingCard {
   const found = deck.find((c) => c.id === id);
   if (!found) throw new Error(`无此牌 ${id}`);
   return { ...found };
@@ -47,7 +47,7 @@ function joker(key: string, effects: JokerEffect[], rarity: JokerDef["rarity"] =
   return { key, name: key, rarity, cost: [4, 5], effects, unlock: null };
 }
 
-function defs(...list: JokerDef[]): Map<string, JokerDef> {
+export function defs(...list: JokerDef[]): Map<string, JokerDef> {
   return new Map(list.map((d) => [d.key, d]));
 }
 

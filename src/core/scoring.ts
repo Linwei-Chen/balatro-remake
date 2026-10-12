@@ -89,6 +89,7 @@ export function scoreHand(input: ScoringInput): ScoringResult {
     heldCards,
     jokers,
     currentJokerIndex: -1,
+    activeJokerKey: null,
     rng,
     log: [],
     pendingDestroys: [],
@@ -192,6 +193,7 @@ function fireJokers(
     const def = defs.get(inst.key);
     if (!def) continue;
     ctx.currentJokerIndex = i;
+    ctx.activeJokerKey = inst.key;
     for (const effect of def.effects) {
       if (effect.trigger !== trigger) continue;
       if (effect.condition && !effect.condition(ctx)) continue;
@@ -199,4 +201,5 @@ function fireJokers(
     }
   }
   ctx.currentJokerIndex = -1;
+  ctx.activeJokerKey = null;
 }

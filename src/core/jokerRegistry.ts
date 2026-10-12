@@ -46,6 +46,8 @@ export interface ScoreContext {
   jokers: readonly JokerInstance[];
   /** 当前触发的小丑下标（Blueprinted 复制判定用） */
   currentJokerIndex: number;
+  /** 当前触发的小丑 key（效果构造器写日志用） */
+  activeJokerKey: string | null;
   rng: Rng;
   /** 结算日志（UI 与验证用） */
   log: TriggerLogEntry[];
