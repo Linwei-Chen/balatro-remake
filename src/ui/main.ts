@@ -18,6 +18,7 @@ import { buildAllJokerDefs } from "../content/jokerDefs.js";
 import { JOKER_RECORDS, type ContentJokerRecord } from "../content/jokers.data.js";
 import { initialHandLevels } from "../core/hands.js";
 import { sellValue } from "../core/economy.js";
+import { maybeShowTutorial, showTutorial } from "./tutorial.js";
 
 const { defs, implemented } = buildAllJokerDefs();
 const recordOf = new Map<string, ContentJokerRecord>(JOKER_RECORDS.map((r) => [r.key, r]));
@@ -150,6 +151,7 @@ function onNextBlind(): void {
   selected.clear();
   lastScoring = null;
   log(`进入 ${blindLabel()}，需求 ${run.requirement} 分。`);
+  if (run.round === 1) log("💡 试着先选出两张点数相同的牌打出（对子最稳）。");
   render();
 }
 
@@ -337,7 +339,13 @@ $("restartBtn").onclick = () => {
   seed = Math.random().toString(36).slice(2, 8).toUpperCase();
   $("overlay").classList.add("hidden");
   $("msg").textContent = "";
-  newGame();
+  // 教程：首次进入自动弹出，之后可从顶栏「📖 教程」回看
+btn("helpBtn").onclick = () => showTutorial();
+newGame();
+maybeShowTutorial();
 };
 
+// 教程：首次进入自动弹出，之后可从顶栏「📖 教程」回看
+btn("helpBtn").onclick = () => showTutorial();
 newGame();
+maybeShowTutorial();
