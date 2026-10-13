@@ -34,6 +34,8 @@
 - [x] 阶段C 小丑灌装批次 1：55/150 实现 + jokerContent.test 24 例端到端（163 测试全绿）
 - [ ] 阶段C 小丑灌装批次 2：剩余 95（blueprint/brainstorm/obelisk/传奇 5 等复杂型）
 - [ ] 阶段C 商店/卡包生成、Tag、Voucher、Stakes、幻灵 create/destroy
+- [x] 最小可玩版 UI（index.html + src/ui/main.ts，DOM 驱动引擎）：盲注→出牌/弃牌→结算→商店（买/卖/重掷）→下一底注，浏览器全流程实测通过
+- [x] 引擎修复：beginBlind 每回合资源重置（handsLeft/discardsLeft/handSize 按 base 重算）；RunState 加 handsPerRound/discardsPerRound/handSizeBase/handLevels；statMods 由集成层基于基础值每回合重算（不累积）
 - [ ] 阶段D PixiJS 渲染 + 手感复刻
 - [ ] 阶段E 差分验证 + 独立评审 agent + 整局 run 模拟
 

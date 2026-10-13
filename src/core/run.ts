@@ -13,6 +13,7 @@ import {
   type EconomyValues,
 } from "./economy.js";
 import type { Rng } from "./rng.js";
+import { initialHandLevels, type HandLevels } from "./hands.js";
 
 export type RunPhase = "blind_select" | "playing" | "round_won" | "shop" | "game_over" | "won";
 
@@ -41,8 +42,12 @@ export interface RunState {
   roundScore: number;
   money: number;
   round: number;
+  /** 手牌上限基础值（Stuntman 等修正每回合基于此重算，不累积） */
+  handSizeBase: number;
   handSize: number;
+  handsPerRound: number;
   handsLeft: number;
+  discardsPerRound: number;
   discardsLeft: number;
   jokerSlots: number;
   consumableSlots: number;
@@ -50,6 +55,8 @@ export interface RunState {
   deck: PlayingCard[];
   /** 本回合已打出的牌型（Card Sharp 用；beginBlind 清空） */
   handsPlayedTypes: HandType[];
+  /** 牌型等级（星球牌升级，跨回合持久） */
+  handLevels: HandLevels;
   phase: RunPhase;
   /** 结算明细（最后一回合） */
   lastIncome: { base: number; hands: number; interest: number; gold: number; total: number } | null;
@@ -67,14 +74,18 @@ export function newRun(deck: PlayingCard[], opts: RunOptions, rng: Rng): RunStat
     roundScore: 0,
     money: opts.economy.startingMoney,
     round: 1,
+    handSizeBase: opts.handSize,
     handSize: opts.handSize,
+    handsPerRound: opts.handsPerRound,
     handsLeft: opts.handsPerRound,
+    discardsPerRound: opts.discardsPerRound,
     discardsLeft: opts.discardsPerRound,
     jokerSlots: opts.jokerSlots,
     consumableSlots: opts.consumableSlots,
     jokers: [],
     deck,
     handsPlayedTypes: [],
+    handLevels: initialHandLevels(),
     phase: "blind_select",
     lastIncome: null,
   };
@@ -86,7 +97,10 @@ export function beginBlind(state: RunState): RunState {
   const s = { ...state };
   s.requirement = blindRequirement(s.ante, s.blindKind, s.economy);
   s.roundScore = 0;
-  s.handsLeft = s.handsLeft > 0 ? s.handsLeft : 0;
+  // 每回合资源重置（Stuntman 等修正由集成层基于基础值在其后重算）
+  s.handSize = s.handSizeBase;
+  s.handsLeft = s.handsPerRound;
+  s.discardsLeft = s.discardsPerRound;
   s.handsPlayedTypes = [];
   s.phase = "playing";
   return s;
